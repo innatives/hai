@@ -1,0 +1,91 @@
+import openai
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+openai.api_key = 'your-openai-api-key'
+
+# List of predefined agent templates
+AGENT_TEMPLATES = [
+    {
+        "id": "1",
+        "name": "Customer Support Agent",
+        "description": "This agent is trained to handle customer support queries.",
+        "template": {
+            "system": {
+                "role": "assistant",
+                "persona": "I'm an AI trained to assist with customer support."
+            }
+        }
+    },
+    {
+        "id": "2",
+        "name": "Technical Support Agent",
+        "description": "This agent is trained to handle technical support queries.",
+        "template": {
+            "system": {
+                "role": "assistant",
+                "persona": "I'm an AI trained to assist with technical support."
+            }
+        }
+    },
+    # Add more templates as needed...
+]
+
+# Dictionary to store conversation history
+CONVERSATIONS = {}
+
+@app.route('/api/listAgents', methods=['GET'])
+def list_agents():
+    return jsonify(AGENT_TEMPLATES), 200
+
+@app.route('/api/createAgent', methods=['POST'])
+def create_agent():
+    agent_id = request.json.get('agent_id')
+    agent_template = next((template for template in AGENT_TEMPLATES if template["id"] == agent_id), None)
+    
+    if agent_template is None:
+        return jsonify({"error": "Invalid agent ID."}), 400
+
+    return jsonify(agent_template), 200
+
+@app.route('/api/chatWithAgent', methods=['POST'])
+def chat_with_agent():
+    agent_id = request.json.get('agent_id')
+    message = request.json.get('message')
+    conversation_id = request.json.get('conversation_id')
+
+    agent_template = next((template for template in AGENT_TEMPLATES if template["id"] == agent_id), None)
+    
+    if agent_template is None:
+        return jsonify({"error": "Invalid agent ID."}), 400
+
+    # Get the conversation history, or start a new one if none exists
+    conversation = CONVERSATIONS.get(conversation_id, [
+        {"role": "system", "content": agent_template["template"]["system"]["persona"]}
+    ])
+
+    # Add the user's message to the conversation history
+    conversation.append({"role": "user", "content": message})
+
+    # Use the OpenAI API to generate a response
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=conversation
+    )
+
+    # Add the agent's response to the conversation history
+    conversation.append({"role": "assistant", "content": response.choices[0].message['content']})
+
+    # Save the updated conversation history
+    CONVERSATIONS[conversation_id] = conversation
+
+    # Save the conversation history to a .txt file
+    with open(f'{conversation_id}.txt', 'w') as f:
+        for message in conversation:
+            f.write(f'{message["role"]}: {message["content"]}\n')
+
+    return jsonify({"response": response.choices[0].message['content']}), 200
+
+if __name__ == '__main__':
+    app.run(port=5000)
