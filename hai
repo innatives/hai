@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-openai.api_key = 'your-openai-api-key'
+openai.api_key = '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'
 
 # List of predefined agent templates
 AGENT_TEMPLATES = [
